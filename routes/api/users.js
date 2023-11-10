@@ -6,18 +6,21 @@ const mongoose = require('mongoose');
 
 const { MongoClient, ServerApiVersion } = require('mongodb');
 const uri = "mongodb+srv://dbUser:penis@projectnewtech2.ehsvhxq.mongodb.net/?retryWrites=true&w=majority";
-// Create a MongoClient with a MongoClientOptions object to set the Stable API version
-const client = new MongoClient(uri, {
-  serverApi: {
-    version: ServerApiVersion.v1,
-    strict: true,
-    deprecationErrors: true,
-  }
-});
+
+
 
 const { Schema } = mongoose;
 
 let conversionsValues = {}
+
+const logSchema = new Schema({
+  to: String,
+  from: String,
+  type: String,
+  value: Schema.Types.Mixed,
+  date: { type: Date, default: Date.now },
+  ip: String
+});
 
 const conversionSchema = new Schema({
   name: String,
@@ -25,9 +28,10 @@ const conversionSchema = new Schema({
 });
 
 const Conversion = mongoose.model('Conversion', conversionSchema);
+const Log = mongoose.model('Log', logSchema);
 
 
-//Data that we inserted in the database
+//Data that we inserted in the database, this code is not necessary for the app to run as we use the data from the database
 const data = {
   longueur: {
     "Xavier": 1.9304,
@@ -72,33 +76,34 @@ const data = {
 //Function to add data to mongodb
 async function runAddData() {
   try {
-    /* // Connect the client to the server	(optional starting in v4.7)
-     await client.connect();
-     // Send a ping to confirm a successful connection
-     await client.db("admin").command({ ping: 1 });
-     console.log("Pinged your deployment. You successfully connected to MongoDB!");*/
-    console.log(Object.keys(data));
     Object.keys(data).forEach(keyValue => console.log(keyValue));
     const promises = Object.keys(data).map(async (keyValue) => {
-      console.log(keyValue);
       const conversion = new Conversion({ "name": keyValue, "values": data[keyValue] });
-      console.log(conversion);
       const savedConversion = await conversion.save();
-
-      console.log(savedConversion);
     });
     await Promise.all(promises);
     console.log("Done!")
-
   } finally {
     // Ensures that the client will close when you finish/error
     await client.close();
   }
 }
+//Code pour ajouter les logs dans la base de données
+async function addLogs(to, from, type, value, ip) {
+  const log = new Log({
+    to: to,
+    from: from,
+    type: type,
+    value: value,
+    date: Date.now(),
+    ip: ip
+  });
+  await log.save();
+}
+
 //Function to read data from mongodb
 async function runReadData() {
   try {
-
     const conversions = await Conversion.find({});
     ConversionsData = {}
     conversions.forEach(conversion => {
@@ -118,7 +123,6 @@ mongoose.connect(uri, { useNewUrlParser: true, useUnifiedTopology: true })
     runReadData().then((data) => {
       conversionsValues = data
       console.log(conversionsValues);
-
 
     })
       .catch(console.dir);
@@ -197,6 +201,7 @@ router.get("/convert", (req, res) => {
     let to = req.query.to
     let value = req.query.value
     let type = req.query.type
+    addLogs(to, from, type, value, req.ip)
     if (!type || !(type in conversionsValues))
       throw { message: "type invalide", validValues: Object.keys(conversionsValues) };
     if (!from || !(from in conversionsValues[type]))
@@ -205,6 +210,7 @@ router.get("/convert", (req, res) => {
       throw { message: "to invalide", validValues: Object.keys(conversionsValues[type]) };
     if (!value || isNaN(value))
       throw { message: "value invalide", validValues: "must be a number UwU" };
+
     let initialValue = conversionsValues[type][from] * req.query.value
     let finalValue = initialValue / conversionsValues[type][to]
     return res.json({
