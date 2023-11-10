@@ -123,11 +123,8 @@ mongoose.connect(uri, { useNewUrlParser: true, useUnifiedTopology: true })
     runReadData().then((data) => {
       conversionsValues = data
       console.log(conversionsValues);
-
     })
       .catch(console.dir);
-
-
   })
   .catch(err => console.log(err));
 
